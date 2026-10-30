@@ -1,0 +1,125 @@
+{
+  "active_region": "colima_copernicus",
+  "regions": {
+    "cdmx": {
+      "bounds": {
+        "lat_max": 19.8,
+        "lat_min": 18.8,
+        "lon_max": -98.5,
+        "lon_min": -99.5
+      },
+      "dataset_path": "data/weather_cdmx.csv",
+      "grid": {
+        "height": 100,
+        "width": 100
+      },
+      "name": "Cuenca Urbana // CDMX y Popocatépetl",
+      "time_steps": 720
+    },
+    "colima_copernicus": {
+      "bounds": {
+        "lat_max": 22.0,
+        "lat_min": 18.0,
+        "lon_max": -101.0,
+        "lon_min": -105.0
+      },
+      "dataset_path": "data/weather_colima.csv",
+      "grid": {
+        "height": 100,
+        "width": 100
+      },
+      "name": "Occidente de México // Colima (Copernicus ERA5)",
+      "time_steps": 720
+    },
+    "death_valley": {
+      "bounds": {
+        "lat_max": 37.0,
+        "lat_min": 35.8,
+        "lon_max": -116.3,
+        "lon_min": -117.6
+      },
+      "dataset_path": "data/weather_death_valley.csv",
+      "grid": {
+        "height": 100,
+        "width": 100
+      },
+      "name": "Desierto // Death Valley (California)",
+      "time_steps": 720
+    },
+    "everest": {
+      "bounds": {
+        "lat_max": 28.5,
+        "lat_min": 27.5,
+        "lon_max": 87.5,
+        "lon_min": 86.4
+      },
+      "dataset_path": "data/weather_everest.csv",
+      "grid": {
+        "height": 100,
+        "width": 100
+      },
+      "name": "Alta Montaña // Himalaya (Everest)",
+      "time_steps": 720
+    },
+    "islandia": {
+      "bounds": {
+        "lat_max": 64.3,
+        "lat_min": 63.3,
+        "lon_max": -18.4,
+        "lon_min": -19.9
+      },
+      "dataset_path": "data/weather_islandia.csv",
+      "grid": {
+        "height": 100,
+        "width": 100
+      },
+      "name": "Ártico Geotérmico // Eyjafjallajökull (Islandia)",
+      "time_steps": 720
+    },
+    "sf_bay": {
+      "bounds": {
+        "lat_max": 38.3,
+        "lat_min": 37.2,
+        "lon_max": -121.8,
+        "lon_min": -122.8
+      },
+      "dataset_path": "data/weather_sf_bay.csv",
+      "grid": {
+        "height": 100,
+        "width": 100
+      },
+      "name": "Microclimas Costeros // San Francisco Bay Area",
+      "time_steps": 720
+    },
+    "villarrica": {
+      "bounds": {
+        "lat_max": -38.8,
+        "lat_min": -39.8,
+        "lon_max": -71.2,
+        "lon_min": -72.5
+      },
+      "dataset_path": "data/weather_chile.csv",
+      "grid": {
+        "height": 100,
+        "width": 100
+      },
+      "name": "Andes // Volcán Villarrica",
+      "time_steps": 720
+    },
+    "yellowstone": {
+      "bounds": {
+        "lat_max": 45.1,
+        "lat_min": 44.0,
+        "lon_max": -110.1,
+        "lon_min": -111.3
+      },
+      "dataset_path": "data/weather_yellowstone.csv",
+      "grid": {
+        "height": 100,
+        "width": 100
+      },
+      "name": "Supervolcán // Caldera de Yellowstone",
+      "time_steps": 720
+    }
+  }
+}

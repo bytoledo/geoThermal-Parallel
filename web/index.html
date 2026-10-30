@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <title>GeoThermal-Parallel // HPC Telemetry</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <link href="https://unpkg.com/tabulator-tables@5.5.0/dist/css/tabulator_midnight.min.css" rel="stylesheet">
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; background: #0f111a; color: #fff; height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+        
+        /* Top Navigation Header: 1 sola línea horizontal estricta con 3 bloques */
+        header { display: flex; align-items: center; justify-content: space-between; gap: 14px; white-space: nowrap; padding: 0 16px; height: 52px; background: #090d16; border-bottom: 1px solid #1e2433; flex-shrink: 0; user-select: none; }
+        .header-left, .header-center, .header-right { display: flex; align-items: center; gap: 10px; flex-shrink: 0; }
+        .v-divider { width: 1px; height: 22px; background: #1e293b; flex-shrink: 0; }
+
+        /* 1. Brand & Selector de Región */
+        .brand { display: flex; flex-direction: column; justify-content: center; line-height: 1.15; }
+        .brand-title { font-size: 12px; font-weight: 800; letter-spacing: 0.8px; color: #38bdf8; }
+        .brand-sub { font-size: 9px; font-weight: 600; letter-spacing: 0.5px; color: #94a3b8; }
+        .region-select { background: #0f172a; color: #38bdf8; border: 1px solid #1e293b; padding: 5px 8px; border-radius: 4px; font-size: 11px; font-weight: 600; cursor: pointer; outline: none; transition: border-color 0.15s ease; }
+        .region-select:hover { border-color: #334155; }
+
+        /* 2. Tabs y Switches */
+        .tabs { display: flex; background: #0f172a; border: 1px solid #1e293b; border-radius: 4px; overflow: hidden; }
+        .tab-btn { background: transparent; border: none; color: #9ca3af; padding: 6px 12px; font-size: 11px; cursor: pointer; font-weight: 600; transition: all 0.15s ease; }
+        .tab-btn:hover { color: #f8fafc; }
+        .tab-btn.active { background: #0284c7; color: #fff; }
+        .tool-btn { background: #0f172a; border: 1px solid #1e293b; border-radius: 4px; color: #9ca3af; padding: 6px 10px; font-size: 11px; font-weight: 600; cursor: pointer; }
+        .tool-btn.active { background: #0369a1; border-color: #38bdf8; color: #fff; }
+
+        /* Switches de control compactos en línea */
+        .layer-toggle-container { display: inline-flex; align-items: center; gap: 6px; user-select: none; }
+        .switch { position: relative; display: inline-block; width: 30px; height: 16px; }
+        .switch input { opacity: 0; width: 0; height: 0; }
+        .slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background-color: #1e293b; transition: .2s ease; border-radius: 16px; border: 1px solid #334155; }
+        .slider:before { position: absolute; content: ""; height: 10px; width: 10px; left: 2px; bottom: 2px; background-color: #94a3b8; transition: .2s ease; border-radius: 50%; }
+        .switch input:checked + .slider { background-color: #0369a1; border-color: #38bdf8; }
+        .switch input:checked + .slider:before { transform: translateX(14px); background-color: #ffffff; }
+
+        /* 3. Controles de Tiempo y Reproducción */
+        .time-controls { display: flex; align-items: center; gap: 4px; flex-shrink: 0; }
+        .btn-ctrl { background: #0f172a; border: 1px solid #1e293b; color: #f1f5f9; padding: 5px 8px; font-size: 11px; cursor: pointer; border-radius: 4px; font-weight: 600; transition: background 0.15s ease; }
+        .btn-ctrl:hover { background: #1e293b; }
+        .btn-play { min-width: 62px; background: #1e293b; }
+        .time-readout { display: flex; align-items: center; gap: 4px; background: #0f172a; border: 1px solid #1e293b; border-radius: 4px; padding: 2px 6px; font-family: monospace; }
+        .time-input { width: 36px; background: transparent; border: none; color: #38bdf8; text-align: center; font-weight: 700; font-size: 12px; outline: none; font-family: monospace; }
+        .speed-select { background: #0f172a; border: 1px solid #1e293b; color: #38bdf8; padding: 4px 6px; font-size: 11px; border-radius: 4px; cursor: pointer; outline: none; }
+        .control-item { display: flex; align-items: center; flex-shrink: 0; }
+
+        /* Main Workspace */
+        #workspace { flex: 1; display: flex; overflow: hidden; position: relative; }
+        #left-panel { width: 450px; height: 100%; display: flex; flex-direction: column; border-right: 1px solid #1e2433; background: #12141c; }
+        #table-container { flex: 1; }
+        #map { flex: 1; height: 100%; }
+
+        /* Timeline Sparkline Tray */
+        #timeline-tray { height: 48px; background: #12141c; border-top: 1px solid #1e2433; display: flex; align-items: center; padding: 0 16px; gap: 12px; }
+        #timeline-canvas { flex: 1; height: 32px; background: #090a0f; border-radius: 4px; cursor: crosshair; }
+        .badge-info { font-size: 11px; color: #9ca3af; white-space: nowrap; }
+
+        /* Leyendas */
+        .map-legend { background: rgba(18, 20, 28, 0.9); padding: 8px 12px; border-radius: 4px; border: 1px solid #374151; font-size: 11px; line-height: 16px; color: #fff; }
+        .gradient-bar { width: 160px; height: 10px; border-radius: 2px; margin-top: 4px; }
+        .tv-weather-legend { background: rgba(15, 17, 26, 0.92); border: 1px solid #334155; box-shadow: 0 4px 14px rgba(0, 0, 0, 0.5); padding: 10px 14px; border-radius: 6px; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; color: #f8fafc; min-width: 260px; }
+        .tv-legend-title { font-size: 11px; font-weight: 700; letter-spacing: 1px; text-transform: uppercase; color: #94a3b8; margin-bottom: 6px; display: flex; justify-content: space-between; }
+        .tv-gradient-track { height: 14px; width: 100%; border-radius: 3px; background: linear-gradient(to right, #0b2fe3 0%, #00c3ff 20%, #00e676 40%, #ffeb3b 65%, #ff5722 85%, #d50000 100%); border: 1px solid rgba(255, 255, 255, 0.2); }
+        .tv-scale-marks { display: flex; justify-content: space-between; font-size: 12px; font-weight: 600; margin-top: 5px; color: #e2e8f0; }
+        .tv-scale-marks span { position: relative; }
+        .tv-scale-marks span::before { content: ""; position: absolute; top: -5px; left: 50%; transform: translateX(-50%); width: 1px; height: 3px; background: #64748b; }
+    </style>
+</head>
+<body>
+<header id="top-bar">
+    <!-- BLOQUE 1: Región e Identidad -->
+    <div class="header-left">
+        <div class="brand">
+            <span class="brand-title">GEOTHERMAL</span>
+            <span class="brand-sub" id="regionSubtitle">HPC ANALYTICS</span>
+        </div>
+
+        <select id="regionSelect" class="region-select">
+            <option value="colima_copernicus">Colima (Copernicus ERA5)</option>
+            <option value="yellowstone">Yellowstone Caldera</option>
+            <option value="islandia">Islandia (Eyjafjallajökull)</option>
+            <option value="cdmx">CDMX y Popocatépetl</option>
+            <option value="sf_bay">San Francisco Bay Area</option>
+            <option value="villarrica">Volcán Villarrica (Chile)</option>
+            <option value="death_valley">Death Valley</option>
+            <option value="everest">Himalaya (Everest)</option>
+        </select>
+    </div>
+
+    <div class="v-divider"></div>
+
+    <!-- BLOQUE 2: Capas GPU, Corte y Viento -->
+    <div class="header-center">
+        <div class="tabs">
+            <button id="tabHeatmap" class="tab-btn active" onclick="switchMode('temperature')">TEMPERATURA</button>
+            <button id="tabAnomalies" class="tab-btn" onclick="switchMode('anomalies')">ANOMALÍAS</button>
+            <button id="tabTopography" class="tab-btn" onclick="switchMode('topography')">RELIEVE</button>
+        </div>
+
+        <button id="tabSlice" class="tool-btn" onclick="toggleSliceMode()">CORTE</button>
+
+        <div class="layer-toggle-container" id="markersToggleWrapper" style="display: none;">
+            <label class="switch">
+                <input type="checkbox" id="toggleMarkers" checked>
+                <span class="slider"></span>
+            </label>
+            <span class="toggle-lbl">Puntos</span>
+        </div>
+
+        <div class="layer-toggle-container" id="windToggleWrapper">
+            <label class="switch">
+                <input type="checkbox" id="toggleWind">
+                <span class="slider"></span>
+            </label>
+            <span class="toggle-lbl active-tint">Viento</span>
+        </div>
+    </div>
+
+    <div class="v-divider"></div>
+
+    <!-- BLOQUE 3: Controles Temporales y Reproducción -->
+    <div class="header-right">
+        <div class="time-controls">
+            <button class="btn-ctrl" onclick="stepTime(-24)" title="-24h">-24h</button>
+            <button class="btn-ctrl" onclick="stepTime(-1)" title="Paso anterior">◀</button>
+            <button id="btnPlay" class="btn-ctrl btn-play" onclick="togglePlay()">▶ Play</button>
+            <button class="btn-ctrl" onclick="stepTime(1)" title="Paso siguiente">▶</button>
+            <button class="btn-ctrl" onclick="stepTime(24)" title="+24h">+24h</button>
+        </div>
+
+        <div class="time-readout">
+            <span class="time-lbl">Paso:</span>
+            <input type="number" id="timeInput" class="time-input" min="0" max="719" value="120" onchange="setTime(this.value)">
+            <span class="time-max">/719</span>
+        </div>
+
+        <select id="playSpeed" class="speed-select">
+            <option value="1000">0.5x</option>
+            <option value="600" selected>1.0x</option>
+            <option value="300">2.0x</option>
+            <option value="150">4.0x</option>
+        </select>
+    </div>
+</header>
+
+<!-- Tabla de Anomalias y Mapa-->
+<div id="workspace">
+    <div id="left-panel" style="display: none;">
+        <div style="padding: 8px 12px; font-size: 11px; font-weight: bold; color: #9ca3af; border-bottom: 1px solid #2d3139; display: flex; justify-content: space-between;">
+            <span id="panelTitle">ANÁLISIS ESTADÍSTICO (|Z| ≥ 3.0σ)</span>
+            <span id="anomalyBadge" style="color: #f43f5e;">0 anomalías</span>
+        </div>
+        <div id="table-container"></div>
+    </div>
+    <div id="map"></div>
+</div>
+
+<!-- Spikes Timeline -->
+<div id="timeline-tray">
+    <span class="badge-info">ACTIVIDAD CRÍTICA (720h):</span>
+    <canvas id="timeline-canvas"></canvas>
+</div>
+
+<!-- Bandeja flotante de corte transversal -->
+<div id="slice-tray" style="display: none; height: 160px; background: #0b0f19; border-top: 1px solid #1e293b; padding: 10px 16px; position: relative;">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+        <span style="font-size: 11px; font-weight: 700; color: #38bdf8; letter-spacing: 0.8px;">CORTE TOPOGRÁFICO Y TÉRMICO // A ➔ B</span>
+        <span id="sliceStats" style="font-size: 11px; color: #94a3b8;">Selecciona 2 puntos en el mapa</span>
+        <button onclick="closeSliceTray()" style="background: none; border: none; color: #ef4444; cursor: pointer; font-weight: bold; font-size: 13px;">✕</button>
+    </div>
+    <div style="height: 115px; position: relative;">
+        <canvas id="slice-canvas"></canvas>
+    </div>
+</div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/tabulator-tables@5.5.0/dist/js/tabulator.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
