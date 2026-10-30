@@ -1,3 +1,22 @@
+<div align="center">
+
+# GeoThermal HPC Engine
+
+[![C++17](https://img.shields.io/badge/C%2B%2B-17-00599C?style=flat-square&logo=c%2B%2B)](https://isocpp.org/)
+[![CUDA](https://img.shields.io/badge/CUDA-12.x-76B900?style=flat-square&logo=nvidia)](https://developer.nvidia.com/cuda-toolkit)
+[![OpenMP](https://img.shields.io/badge/OpenMP-Enabled-FF5722?style=flat-square)](https://www.openmp.org/)
+[![CMake](https://img.shields.io/badge/CMake-3.20%2B-064F8C?style=flat-square&logo=cmake)](https://cmake.org/)
+[![Leaflet](https://img.shields.io/badge/Leaflet-1.9.4-199900?style=flat-square&logo=leaflet)](https://leafletjs.com/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg?style=flat-square)](LICENSE)
+
+**Motor híbrido de análisis meteorológico y microclimático en memoria compartida (OpenMP/AVX2) con renderizado continuo a 1080p y sombreado topográfico acelerado en hardware (NVIDIA CUDA).**
+
+[Características](#características) • [Puesta en Marcha](#puesta-en-marcha-rápida) • [Arquitectura](#arquitectura-técnica) • [Datasets](#obtención-de-datos)
+
+</div>
+
+---
+
 # GeoThermal HPC Engine
 
 Pipeline analítico y de visualización espaciotemporal de microclimas con aceleración paralela híbrida:
@@ -6,6 +25,37 @@ Pipeline analítico y de visualización espaciotemporal de microclimas con acele
 * **Frontend Web:** Interfaz geográfica interactiva con **Leaflet.js**, telemetría en tiempo real, corte transversal topográfico y soporte de máscaras vectoriales.
 
 ---
+
+## Arquitectura de Procesamiento Híbrido
+
+```mermaid
+graph TD
+    subgraph CPU ["CPU: OpenMP & AVX2 (Memoria Compartida)"]
+        CSV[weather_*.csv] -->|Carga SoA| Host[ClimateTensorHost]
+        BIN[elevation_*.bin] -->|fread directo| Host
+        Host -->|Paralelismo de bucle| ZScore[Cálculo de Anomalías Z-Score]
+        Host -->|Muestreo bilineal Haversine| SliceAPI["/api/slice (120 pts)"]
+    end
+
+    subgraph GPU ["GPU: NVIDIA CUDA (1080p Framebuffer)"]
+        Host -->|cudaMemcpyAsync| Device[ClimateTensorDevice]
+        Device -->|Kernel Bilineal| TempShader[Shader Térmico Turbo]
+        Device -->|Kernel Hillshade 315°/45°| TopoShader[Shader Topográfico]
+        TempShader --> HeatmapOut[Búfer RGBA 1920x1080]
+        TopoShader --> HeatmapOut
+    end
+
+    subgraph Web ["Frontend: Leaflet.js & Canvas"]
+        Server["Servidor HTTP (httplib)"] -->|Transferencia binaria| DirectCanvas[Canvas Offscreen]
+        DirectCanvas -->|Recorte vectorial clip-path| Leaflet[Mapa Interactivo]
+        SliceAPI -->|JSON Perfil| SliceCanvas[HUD Corte Transversal]
+    end
+
+    HeatmapOut --> Server
+```
+
+---
+
 
 ## Estructura del Repositorio
 
