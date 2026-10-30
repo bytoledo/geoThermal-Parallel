@@ -1,0 +1,39 @@
+# Compilación y artefactos de C++ / CUDA
+build/
+bin/
+Release/
+Debug/
+*.exe
+*.obj
+*.o
+*.pdb
+*.ilk
+*.lib
+.vs/
+*.vcxproj.user
+
+# Entornos virtuales y temporales de Python
+__pycache__/
+*.py[cod]
+.venv/
+env/
+venv/
+
+# Datasets climáticos pesados y fuentes crudas
+data/datasets/
+data/datasets_copernicus/
+data/*.nc
+data/*.csv
+data/elevations/*.tif
+data/elevations/*.tiff
+
+# Secretos y credenciales de APIs
+.cdsapirc
+*.key
+*.token
+
+# Conservar estructura y los binarios ligeros de relieve (40 KB c/u)
+!data/.gitkeep
+!data/elevations/.gitkeep
+!data/elevations/*.bin
+anomalias_detectadas.csv
