@@ -1,0 +1,30 @@
+name: Build Verification
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  build-windows:
+    runs-on: windows-latest
+    steps:
+    - uses: actions/checkout@v4
+
+    - name: Configurar Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.11'
+
+    - name: Instalar dependencias Python
+      run: pip install -r requirements.txt
+
+    - name: Generar datos de prueba sintéticos
+      run: python scripts/generate_sample_data.py
+
+    - name: Configurar CMake
+      run: cmake -B build -S .
+
+    - name: Compilar Proyecto (MSVC + OpenMP)
+      run: cmake --build build --config Release
