@@ -1,0 +1,15 @@
+# Cómputo numérico y generación sintética (Esencial)
+numpy>=1.22.0
+
+# Procesamiento de rásteres satelitales DEM y GeoTIFF
+scipy>=1.9.0
+tifffile>=2023.1.0
+imagecodecs>=2023.1.23
+
+# Ingestión de datasets climáticos NetCDF (Copernicus ERA5)
+xarray>=2023.1.0
+netCDF4>=1.6.0
+cdsapi>=0.6.1
+
+# Herramientas de red y máscaras vectoriales
+requests>=2.28.0
