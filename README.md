@@ -59,7 +59,7 @@ pip install numpy scipy xarray netCDF4 tifffile imagecodecs cdsapi requests
 
 ---
 
-## Generar un Prototipo Funcional
+## Puesta en Marcha Rápida (Quickstart)
 
 ### 1. Clonar el repositorio
 ```bash
@@ -67,13 +67,13 @@ git clone [https://github.com/TU_USUARIO/geothermal-parallel.git](https://github
 cd geothermal-parallel
 ```
 
-### 2. Generar el dataset de prueba (Mock Data)
-Genera la serie temporal de 720 pasos horarios y la malla de elevación en segundos sin descargar archivos externos:
+### 2. Instalar requerimientos de Python y generar datos
 ```bash
+pip install -r requirements.txt
 python scripts/generate_sample_data.py
 ```
 
-### 3. Compilar el proyecto con CMake
+### 3. Compilar el motor HPC con CMake
 ```powershell
 cmake -B build -S .
 cmake --build build --config Release
@@ -84,7 +84,7 @@ cmake --build build --config Release
 .\build\Release\GeoThermalParallel.exe
 ```
 
-Abre tu navegador en `http://localhost:8080`. Podrás explorar:
+Abre `http://localhost:8080` en cualquier navegador moderno y navega por las funciones:
 * **Temperatura:** Capa continua interpolada por CUDA.
 * **Anomalías:** Eventos críticos filtrados con OpenMP.
 * **Topografía:** Sombreado de laderas por iluminación solar.
