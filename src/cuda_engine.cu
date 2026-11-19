@@ -289,13 +289,14 @@ __global__ void kernel_topography_hillshade(
 // 4. GESTIÓN DE VRAM Y EJECUCIÓN (HOST API)
 // =============================================================================
 
-// Reserva de tensores y framebuffers en memoria de dispositivo
+// Reserva de tensores completos y framebuffers en memoria de dispositivo
 bool CUDAEngine::init_device_memory(ClimateTensorDevice& dev) {
+    size_t full_bytes  = static_cast<size_t>(TIME_STEPS) * TOTAL_CELLS * sizeof(float);
     size_t slice_bytes = TOTAL_CELLS * sizeof(float);
     size_t out_bytes   = RENDER_WIDTH * RENDER_HEIGHT * sizeof(uchar4);
 
-    cudaError_t e1 = cudaMalloc((void**)&dev.d_slice_temp, slice_bytes);
-    cudaError_t e2 = cudaMalloc((void**)&dev.d_slice_zscore, slice_bytes);
+    cudaError_t e1 = cudaMalloc((void**)&dev.d_temperature, full_bytes);
+    cudaError_t e2 = cudaMalloc((void**)&dev.d_zscores, full_bytes);
     cudaError_t e4 = cudaMalloc((void**)&dev.d_elevation, slice_bytes);
     cudaError_t e3 = cudaMalloc((void**)&dev.d_heatmap_out, out_bytes);
     dev.d_heatmap  = dev.d_heatmap_out;
@@ -305,44 +306,50 @@ bool CUDAEngine::init_device_memory(ClimateTensorDevice& dev) {
 
 // Liberación explícita de buffers en GPU
 void CUDAEngine::free_device_memory(ClimateTensorDevice& dev) {
+    if (dev.d_temperature)  { cudaFree(dev.d_temperature);  dev.d_temperature = nullptr; }
+    if (dev.d_zscores)      { cudaFree(dev.d_zscores);      dev.d_zscores = nullptr; }
     if (dev.d_slice_temp)   { cudaFree(dev.d_slice_temp);   dev.d_slice_temp = nullptr; }
     if (dev.d_slice_zscore) { cudaFree(dev.d_slice_zscore); dev.d_slice_zscore = nullptr; }
     if (dev.d_elevation)    { cudaFree(dev.d_elevation);    dev.d_elevation = nullptr; }
     if (dev.d_heatmap_out)  { cudaFree(dev.d_heatmap_out);  dev.d_heatmap_out = nullptr; dev.d_heatmap = nullptr; }
 }
 
-// Transferencia asíncrona de datos escalares de temperatura a GPU
-void CUDAEngine::upload_temperatures(ClimateTensorDevice& dev, const float* h_temps, cudaStream_t stream) {
-    cudaMemcpyAsync(dev.d_slice_temp, h_temps, TOTAL_CELLS * sizeof(float), cudaMemcpyHostToDevice, stream);
+// Transferencia asíncrona del tensor completo de temperaturas a GPU
+void CUDAEngine::upload_all_temperatures(ClimateTensorDevice& dev, const float* h_temps, cudaStream_t stream) {
+    size_t full_bytes = static_cast<size_t>(TIME_STEPS) * TOTAL_CELLS * sizeof(float);
+    cudaMemcpyAsync(dev.d_temperature, h_temps, full_bytes, cudaMemcpyHostToDevice, stream);
 }
 
-// Transferencia asíncrona de datos escalares de anomalías a GPU
-void CUDAEngine::upload_zscores(ClimateTensorDevice& dev, const float* h_zscores, cudaStream_t stream) {
-    cudaMemcpyAsync(dev.d_slice_zscore, h_zscores, TOTAL_CELLS * sizeof(float), cudaMemcpyHostToDevice, stream);
+// Transferencia asíncrona del tensor completo de Z-Scores a GPU
+void CUDAEngine::upload_all_zscores(ClimateTensorDevice& dev, const float* h_zscores, cudaStream_t stream) {
+    size_t full_bytes = static_cast<size_t>(TIME_STEPS) * TOTAL_CELLS * sizeof(float);
+    cudaMemcpyAsync(dev.d_zscores, h_zscores, full_bytes, cudaMemcpyHostToDevice, stream);
 }
 
-// Despacho del kernel de renderizado para el mapa de temperatura
-void CUDAEngine::render_temperature_field(const ClimateTensorDevice& dev, cudaStream_t stream, float min_temp, float max_temp) {
+// Despacho del kernel de renderizado para el mapa de temperatura leyendo directo de VRAM
+void CUDAEngine::render_temperature_field(const ClimateTensorDevice& dev, int time_idx, cudaStream_t stream, float min_temp, float max_temp) {
     dim3 threads(16, 16);
     dim3 blocks((RENDER_WIDTH + threads.x - 1) / threads.x,
                 (RENDER_HEIGHT + threads.y - 1) / threads.y);
 
+    const float* d_slice = dev.d_temperature + static_cast<size_t>(time_idx) * TOTAL_CELLS;
     kernel_direct_temperature<<<blocks, threads, 0, stream>>>(
-        dev.d_slice_temp, dev.d_heatmap_out,
+        d_slice, dev.d_heatmap_out,
         GRID_WIDTH, GRID_HEIGHT,
         RENDER_WIDTH, RENDER_HEIGHT,
         min_temp, max_temp
     );
 }
 
-// Despacho del kernel de renderizado para el mapa de anomalías
-void CUDAEngine::render_anomaly_field(const ClimateTensorDevice& dev, cudaStream_t stream) {
+// Despacho del kernel de renderizado para el mapa de anomalías leyendo directo de VRAM
+void CUDAEngine::render_anomaly_field(const ClimateTensorDevice& dev, int time_idx, cudaStream_t stream) {
     dim3 threads(16, 16);
     dim3 blocks((RENDER_WIDTH + threads.x - 1) / threads.x,
                 (RENDER_HEIGHT + threads.y - 1) / threads.y);
 
+    const float* d_slice = dev.d_zscores + static_cast<size_t>(time_idx) * TOTAL_CELLS;
     kernel_anomaly_zscore<<<blocks, threads, 0, stream>>>(
-        dev.d_slice_zscore, dev.d_heatmap_out,
+        d_slice, dev.d_heatmap_out,
         GRID_WIDTH, GRID_HEIGHT,
         RENDER_WIDTH, RENDER_HEIGHT
     );

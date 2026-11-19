@@ -40,17 +40,17 @@ namespace CUDAEngine {
     // Liberación segura de punteros de memoria de dispositivo
     void free_device_memory(ClimateTensorDevice& dev);
     
-    // Transferencia asíncrona de un slice temporal de temperaturas a VRAM
-    void upload_temperatures(ClimateTensorDevice& dev, const float* h_temps, cudaStream_t stream);
+    // Transferencia asíncrona del tensor completo de temperaturas a VRAM
+    void upload_all_temperatures(ClimateTensorDevice& dev, const float* h_temps, cudaStream_t stream);
 
-    // Transferencia asíncrona de un slice temporal de Z-Scores a VRAM
-    void upload_zscores(ClimateTensorDevice& dev, const float* h_zscores, cudaStream_t stream);
+    // Transferencia asíncrona del tensor completo de Z-Scores a VRAM
+    void upload_all_zscores(ClimateTensorDevice& dev, const float* h_zscores, cudaStream_t stream);
 
     // Despacho del kernel de renderizado para el mapa térmico interpolado (8 rangos)
-    void render_temperature_field(const ClimateTensorDevice& dev, cudaStream_t stream, float min_temp, float max_temp);
+    void render_temperature_field(const ClimateTensorDevice& dev, int time_idx, cudaStream_t stream, float min_temp, float max_temp);
 
     // Despacho del kernel de renderizado para el mapa de severidad de anomalías
-    void render_anomaly_field(const ClimateTensorDevice& dev, cudaStream_t stream);
+    void render_anomaly_field(const ClimateTensorDevice& dev, int time_idx, cudaStream_t stream);
 
     // Transferencia asíncrona de un slice temporal de elevaciones a VRAM
     void upload_elevations(ClimateTensorDevice& dev, const float* h_elevations, cudaStream_t stream);

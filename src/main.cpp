@@ -12,6 +12,7 @@
 #include <cmath>
 #include <chrono>
 #include <filesystem>
+#include <mutex>
 #include <httplib.h>
 #include <nlohmann/json.hpp>
 
@@ -193,16 +194,28 @@ int main() {
         return 1;
     }
 
-    size_t vram_bytes = (static_cast<size_t>(TOTAL_CELLS) * 3 * sizeof(float)) + 
-                        (static_cast<size_t>(RENDER_WIDTH) * RENDER_HEIGHT * sizeof(uchar4_pixel));
+    size_t full_tensor_bytes = static_cast<size_t>(TIME_STEPS) * TOTAL_CELLS * sizeof(float);
+    size_t framebuffer_bytes = static_cast<size_t>(RENDER_WIDTH) * RENDER_HEIGHT * sizeof(uchar4_pixel);
+    size_t vram_bytes = (full_tensor_bytes * 2) +
+                        (static_cast<size_t>(TOTAL_CELLS) * sizeof(float)) +
+                        framebuffer_bytes;
     double vram_mb    = static_cast<double>(vram_bytes) / (1024.0 * 1024.0);
 
     cudaStream_t stream;
     cudaStreamCreate(&stream);
-    std::vector<uchar4_pixel> h_framebuffer(RENDER_WIDTH * RENDER_HEIGHT);
+    uchar4_pixel* h_framebuffer = nullptr;
+    if (cudaMallocHost(reinterpret_cast<void**>(&h_framebuffer), framebuffer_bytes) != cudaSuccess) {
+        std::cerr << "[-] Error critico: fallo al reservar memoria pinned en Host.\n";
+        CUDAEngine::free_device_memory(dev);
+        CPUEngine::free_host_memory(host);
+        return 1;
+    }
+    std::mutex gpu_mutex;
 
-    // Subida inicial de la matriz de elevación a VRAM
+    // Subida inicial de elevación y tensores completos (temps + z_scores) a VRAM
     CUDAEngine::upload_elevations(dev, host.elevations, stream);
+    CUDAEngine::upload_all_temperatures(dev, host.temps, stream);
+    CUDAEngine::upload_all_zscores(dev, host.z_scores, stream);
     cudaStreamSynchronize(stream);
 
     // Medición de rendimiento en GPU para un fotograma 1080p
@@ -210,9 +223,8 @@ int main() {
     cudaEventCreate(&start_gpu);
     cudaEventCreate(&stop_gpu);
 
-    CUDAEngine::upload_temperatures(dev, &host.temps[0], stream);
     cudaEventRecord(start_gpu, stream);
-    CUDAEngine::render_temperature_field(dev, stream, -25.0f, 50.0f);
+    CUDAEngine::render_temperature_field(dev, 0, stream, -25.0f, 50.0f);
     cudaEventRecord(stop_gpu, stream);
     cudaEventSynchronize(stop_gpu);
 
@@ -248,17 +260,17 @@ int main() {
         int t = req.has_param("time") ? std::stoi(req.get_param_value("time")) : 0;
         t = std::clamp(t, 0, config.time_steps - 1);
 
-        CUDAEngine::upload_temperatures(dev, &host.temps[t * TOTAL_CELLS], stream);
-        CUDAEngine::render_temperature_field(dev, stream, -25.0f, 50.0f);
+        std::lock_guard<std::mutex> lock(gpu_mutex);
+        CUDAEngine::render_temperature_field(dev, t, stream, -25.0f, 50.0f);
 
-        cudaMemcpyAsync(h_framebuffer.data(), dev.d_heatmap_out,
-                        RENDER_WIDTH * RENDER_HEIGHT * sizeof(uchar4_pixel),
+        cudaMemcpyAsync(h_framebuffer, dev.d_heatmap_out,
+                        framebuffer_bytes,
                         cudaMemcpyDeviceToHost, stream);
         cudaStreamSynchronize(stream);
 
         res.set_header("Access-Control-Allow-Origin", "*");
-        res.set_content(reinterpret_cast<const char*>(h_framebuffer.data()),
-                        h_framebuffer.size() * sizeof(uchar4_pixel),
+        res.set_content(reinterpret_cast<const char*>(h_framebuffer),
+                        framebuffer_bytes,
                         "application/octet-stream");
     });
 
@@ -271,16 +283,17 @@ int main() {
             if (val > max_e) max_e = val;
         }
 
+        std::lock_guard<std::mutex> lock(gpu_mutex);
         CUDAEngine::render_topography_field(dev, stream, min_e, max_e);
 
-        cudaMemcpyAsync(h_framebuffer.data(), dev.d_heatmap_out,
-                        RENDER_WIDTH * RENDER_HEIGHT * sizeof(uchar4_pixel),
+        cudaMemcpyAsync(h_framebuffer, dev.d_heatmap_out,
+                        framebuffer_bytes,
                         cudaMemcpyDeviceToHost, stream);
         cudaStreamSynchronize(stream);
 
         res.set_header("Access-Control-Allow-Origin", "*");
-        res.set_content(reinterpret_cast<const char*>(h_framebuffer.data()),
-                        h_framebuffer.size() * sizeof(uchar4_pixel),
+        res.set_content(reinterpret_cast<const char*>(h_framebuffer),
+                        framebuffer_bytes,
                         "application/octet-stream");
     });
 
@@ -288,17 +301,17 @@ int main() {
         int t = req.has_param("time") ? std::stoi(req.get_param_value("time")) : 0;
         t = std::clamp(t, 0, config.time_steps - 1);
 
-        CUDAEngine::upload_zscores(dev, &host.z_scores[t * TOTAL_CELLS], stream);
-        CUDAEngine::render_anomaly_field(dev, stream);
+        std::lock_guard<std::mutex> lock(gpu_mutex);
+        CUDAEngine::render_anomaly_field(dev, t, stream);
 
-        cudaMemcpyAsync(h_framebuffer.data(), dev.d_heatmap_out,
-                        RENDER_WIDTH * RENDER_HEIGHT * sizeof(uchar4_pixel),
+        cudaMemcpyAsync(h_framebuffer, dev.d_heatmap_out,
+                        framebuffer_bytes,
                         cudaMemcpyDeviceToHost, stream);
         cudaStreamSynchronize(stream);
 
         res.set_header("Access-Control-Allow-Origin", "*");
-        res.set_content(reinterpret_cast<const char*>(h_framebuffer.data()),
-                        h_framebuffer.size() * sizeof(uchar4_pixel),
+        res.set_content(reinterpret_cast<const char*>(h_framebuffer),
+                        framebuffer_bytes,
                         "application/octet-stream");
     });
 
@@ -537,16 +550,18 @@ int main() {
         // Recarga de elevación para la nueva región y sincronización con VRAM
         std::string elev_path = "data/elevations/elevation_" + target_id + ".bin";
         CPUEngine::load_elevation_binary(elev_path, host);
-        CUDAEngine::upload_elevations(dev, host.elevations, stream);
-        cudaStreamSynchronize(stream);
 
         CPUEngine::compute_time_series(host, 24, 2.5f, global_anomalies);
         std::cout << "[✓] CPU (OpenMP): " << global_anomalies.size() << " anomalias detectadas.\n";
 
-        CUDAEngine::upload_temperatures(dev, host.temps, stream);
-        CUDAEngine::upload_zscores(dev, host.z_scores, stream);
-        cudaStreamSynchronize(stream);
-        std::cout << "[✓] CUDA: Frame inicial transferido a VRAM.\n";
+        {
+            std::lock_guard<std::mutex> lock(gpu_mutex);
+            CUDAEngine::upload_elevations(dev, host.elevations, stream);
+            CUDAEngine::upload_all_temperatures(dev, host.temps, stream);
+            CUDAEngine::upload_all_zscores(dev, host.z_scores, stream);
+            cudaStreamSynchronize(stream);
+        }
+        std::cout << "[✓] CUDA: Tensores completos transferidos a VRAM.\n";
         std::cout << "======================================================\n";
 
         j["active_region"] = target_id;
@@ -559,6 +574,7 @@ int main() {
     std::cout << ">>> Servidor HTTP corriendo en http://localhost:8080\n";
     svr.listen("0.0.0.0", 8080);
 
+    cudaFreeHost(h_framebuffer);
     cudaStreamDestroy(stream);
     CUDAEngine::free_device_memory(dev);
     CPUEngine::free_host_memory(host);
