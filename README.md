@@ -13,6 +13,10 @@
 
 [Características](#características) • [Arquitectura](#arquitectura-de-procesamiento-híbrido) • [API REST](#api-rest-embebida) • [Requisitos](#requisitos-del-sistema-y-dependencias) • [Puesta en Marcha](#puesta-en-marcha-rápida-quickstart) • [Datasets](#obtención-de-datos)
 
+<br>
+
+<img src="docs/banner.jpg" alt="GeoThermal HPC Engine - Interfaz Web" width="100%">
+
 </div>
 
 ---
