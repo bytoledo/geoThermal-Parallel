@@ -12,6 +12,13 @@ jobs:
     steps:
     - uses: actions/checkout@v4
 
+    - name: Instalar CUDA Toolkit (nvcc + cudart)
+      uses: Jimver/cuda-toolkit@v0.2.21
+      with:
+        cuda: '12.6.0'
+        method: 'network'
+        sub-packages: '["nvcc", "cudart"]'
+
     - name: Configurar Python
       uses: actions/setup-python@v5
       with:
@@ -26,5 +33,5 @@ jobs:
     - name: Configurar CMake
       run: cmake -B build -S .
 
-    - name: Compilar Proyecto (MSVC + OpenMP)
+    - name: Compilar Proyecto (MSVC + OpenMP + CUDA)
       run: cmake --build build --config Release
