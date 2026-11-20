@@ -11,7 +11,7 @@
 
 **Motor híbrido de análisis meteorológico y microclimático en memoria compartida (OpenMP/AVX2) con renderizado continuo a 1080p y sombreado topográfico acelerado en hardware (NVIDIA CUDA).**
 
-[Características](#características) • [Arquitectura](#arquitectura-de-procesamiento-híbrido) • [API REST](#api-rest-embebida) • [Requisitos](#requisitos-del-sistema-y-dependencias) • [Puesta en Marcha](#puesta-en-marcha-rápida-quickstart) • [Datasets](#obtención-de-datos)
+[Características](#características) • [Arquitectura](#arquitectura-de-procesamiento-híbrido) • [Rendimiento](#métricas-y-rendimiento) • [API REST](#api-rest-embebida) • [Requisitos](#requisitos-del-sistema-y-dependencias) • [Puesta en Marcha](#puesta-en-marcha-rápida-quickstart) • [Datasets](#obtención-de-datos)
 
 <br>
 
@@ -58,6 +58,58 @@ graph TD
 
     HeatmapOut --> Server
 ```
+
+---
+
+## Métricas y Rendimiento
+
+Resultados medidos sobre **7,200,000 registros** ($100 \times 100$ celdas $\times$ 720 horas, `data/weather_cdmx.csv`, **292.17 MB** en disco) en **Intel Core i7-14650HX** + **NVIDIA GeForce RTX 5050**:
+
+| Etapa / Recurso | Medición | Detalle |
+| :--- | :--- | :--- |
+| **Carga y parseo CSV** | **617.78 ms** | Lectura binaria en RAM + parseo paralelo OpenMP (`std::from_chars`) |
+| **Cómputo analítico (CPU)** | **27.47 ms** | Cálculo de anomalías ($Z\text{-Score}$) y estadísticas en OpenMP |
+| **Renderizado 1080p (GPU)** | **0.50 ms / frame** | ~2,007 FPS teóricos en CUDA (interpolación bilineal + shaders) |
+| **Huella en RAM (Host)** | **137.44 MB** | Estructura SoA alineada para AVX2 |
+| **Huella en VRAM (GPU)** | **62.88 MB** | Tensores completos en dispositivo + framebuffers 1080p |
+
+<details>
+<summary>Ver salida completa de telemetría en consola</summary>
+
+```text
+======================================================================
+          GEOTHERMAL-PARALLEL // MOTOR DE TELEMETRIA HPC
+======================================================================
+
+[CONFIG] Region: Cuenca Urbana // CDMX y Popocatépetl
+[CONFIG] Grid: 100x100 (10000 celdas) | Pasos Temporales: 720h
+>>> Leyendo dataset en memoria...
+>>> Procesando analisis temporal y Z-Scores (OpenMP)...
+
+----------------------------------------------------------------------
+                       METRICAS DEL SISTEMA
+----------------------------------------------------------------------
+  [DATASET EN DISCO]       : data/weather_cdmx.csv
+  * Tamano en almacenamiento: 292.17 MB (306360637 bytes)
+  * Dimension temporal     : 720 pasos horarios
+  * Elementos totales      : 7200000 registros (celda x hora)
+
+  [MEMORIA EN OPERACION]   :
+  * Huella en RAM (Host)   : 137.44 MB (Espacio SoA alineado AVX2)
+  * Datos a procesar       : 137.44 MB (Equivale a la ocupacion en RAM)
+  * Huella en VRAM (GPU)   : 62.88 MB (Framebuffers 1080p + Texturas)
+
+  [RENDIMIENTO Y TIEMPOS]  :
+  * Carga y parseo CSV     : 617.78 ms (0.62 s)
+  * Computo CPU (OpenMP)   : 27.47 ms (0.03 s)
+  * Render GPU por frame   : 0.50 ms (~2007 FPS teoricos en CUDA)
+  * Anomalias detectadas   : 0 eventos criticos (|Z| >= 2.5)
+----------------------------------------------------------------------
+
+>>> Servidor HTTP corriendo en http://localhost:8080
+```
+
+</details>
 
 ---
 
